@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Height Prediction Calculator</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 40px; background: #f4f8fc; }
+    .container { max-width: 600px; margin: auto; background: white; padding: 20px;
+                 border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+    h1 { text-align: center; color: #333; }
+    label { display: block; margin-top: 10px; font-weight: bold; }
+    input, select, button {
+      width: 100%; padding: 8px; margin-top: 5px;
+      border-radius: 8px; border: 1px solid #ccc;
+    }
+    button { background: #0078D7; color: white; font-size: 16px; margin-top: 20px;
+             cursor: pointer; transition: 0.3s; }
+    button:hover { background: #005a9e; }
+    .result { margin-top: 20px; padding: 15px; background: #e8f4ff;
+              border-radius: 10px; border-left: 5px solid #0078D7; }
+  </style>
+</head>
+<body>
+  <h1>Height Prediction Calculator</h1>
+  <div class="container">
+    <label for="gender">Gender:</label>
+    <select id="gender">
+      <option value="Male">Male</option>
+      <option value="Female">Female</option>
+    </select>
+
+    <label for="age">Current Age (years, decimals allowed):</label>
+    <input type="number" step="0.1" id="age" placeholder="e.g. 7.5">
+
+    <label for="height">Current Height (cm):</label>
+    <input type="number" step="0.1" id="height" placeholder="e.g. 125.4">
+
+    <button onclick="predictHeight()">Predict</button>
+
+    <div id="results" class="result" style="display:none;"></div>
+  </div>
+
+  <script>
+    async function predictHeight() {
+      const gender = document.getElementById("gender").value;
+      const age = parseFloat(document.getElementById("age").value);
+      const currentHeight = parseFloat(document.getElementById("height").value);
+      const resultBox = document.getElementById("results");
+
+      if (isNaN(age) || isNaN(currentHeight)) {
+        resultBox.style.display = "block";
+        resultBox.innerHTML = "❌ Please enter valid age and height.";
+        return;
+      }
+
+      try {
+        // Load correct dataset
+        const file = gender === "Male" ? "Male.json" : "Female.json";
+        const response = await fetch(file);
+        const json = await response.json();
+        const data = json.data;
+
+        // Find two closest ages for interpolation
+        const lower = data.reduce((prev, curr) =>
+          curr.Age <= age ? curr : prev, data[0]);
+        const upper = data.find(item => item.Age >= age) || data[data.length-1];
+
+        // Interpolation factor (0 if exact age)
+        const factor = (age - lower.Age) / (upper.Age - lower.Age || 1);
+
+        // Interpolated percentile values
+        const percentiles = Object.keys(lower).filter(k => k !== "Age");
+        const interpolated = {};
+        percentiles.forEach(p => {
+          interpolated[p] = lower[p] + factor * (upper[p] - lower[p]);
+        });
+
+        // Find nearest percentile for given height
+        let nearest = percentiles[0];
+        let minDiff = Math.abs(interpolated[nearest] - currentHeight);
+        percentiles.forEach(p => {
+          const diff = Math.abs(interpolated[p] - currentHeight);
+          if (diff < minDiff) {
+            minDiff = diff;
+            nearest = p;
+          }
+        });
+
+        // Project to age 18 at the same percentile
+        const adultRow = data.find(r => r.Age === 18);
+        const predicted = adultRow[nearest];
+        const sd = predicted * 0.045;
+        const lowerRange = (predicted - sd).toFixed(2);
+        const upperRange = (predicted + sd).toFixed(2);
+
+        resultBox.style.display = "block";
+        resultBox.innerHTML = `
+          ✅ Current Age: <b>${age} years</b> <br>
+          ✅ Current Height: <b>${currentHeight} cm</b> <br>
+          📊 Nearest Percentile: <b>${nearest}</b> <br><br>
+          🔮 Predicted Adult Height (age 18, following ${nearest}): 
+          <b>${predicted} cm</b> <br>
+          Range (±4.5%): <b>${lowerRange} – ${upperRange} cm</b>
+        `;
+      } catch (err) {
+        resultBox.style.display = "block";
+        resultBox.innerHTML = "❌ Error loading data.";
+      }
+    }
+  </script>
+</body>
+</html>
