@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Height Prediction Calculator</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 40px; background: #f4f8fc; }
+    .container { max-width: 600px; margin: auto; background: white; padding: 20px;
+                 border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+    h1 { text-align: center; color: #333; }
+    label { display: block; margin-top: 10px; font-weight: bold; }
+    input, select, button {
+      width: 100%; padding: 8px; margin-top: 5px;
+      border-radius: 8px; border: 1px solid #ccc;
+    }
+    button { background: #0078D7; color: white; font-size: 16px; margin-top: 20px;
+             cursor: pointer; transition: 0.3s; }
+    button:hover { background: #005a9e; }
+    .result { margin-top: 20px; padding: 15px; background: #e8f4ff;
+              border-radius: 10px; border-left: 5px solid #0078D7; }
+  </style>
+</head>
+<body>
+  <h1>Height Prediction Calculator</h1>
+  <div class="container">
+    <label>Sex:</label>
+    <select id="sex">
+      <option value="male">Male</option>
+      <option value="female">Female</option>
+    </select>
+
+    <label>Current Age (years):</label>
+    <input type="number" id="age" placeholder="e.g., 10">
+
+    <label>Current Height (cm):</label>
+    <input type="number" id="height" placeholder="e.g., 140">
+
+    <button onclick="predictHeight()">Predict Height</button>
+
+    <div id="results"></div>
+  </div>
+
+  <script>
+    async function predictHeight() {
+      let sex = document.getElementById("sex").value;
+      let age = parseInt(document.getElementById("age").value);
+      let height = parseFloat(document.getElementById("height").value);
+
+      if (isNaN(age) || isNaN(height)) {
+        alert("Please enter valid age and height.");
+        return;
+      }
+
+      // Load correct dataset
+      let data = await fetch(sex + ".json").then(res => res.json());
+
+      // Find row for current age
+      let row = data.find(r => r.Age === age);
+      if (!row) {
+        alert("Age not available in dataset.");
+        return;
+      }
+
+      // Find nearest percentile
+      let cols = Object.keys(row).filter(k => k !== "Age");
+      let nearest = cols.reduce((a, b) =>
+        Math.abs(row[a] - height) < Math.abs(row[b] - height) ? a : b
+      );
+
+      // Adult row (assuming age 18)
+      let adultRow = data.find(r => r.Age === 18);
+      let predicted = adultRow[nearest];
+
+      // Apply ±4.5% as SD
+      let sd = predicted * 0.045;
+      let lower = (predicted - sd).toFixed(1);
+      let upper = (predicted + sd).toFixed(1);
+
+      // Show results
+      document.getElementById("results").innerHTML = `
+        <div class="result">
+          <h3>Results:</h3>
+          <p><strong>Percentile Match:</strong> ${nearest}</p>
+          <p><strong>Predicted Adult Height:</strong> ${predicted.toFixed(1)} cm</p>
+          <p><strong>With ±4.5% SD:</strong> Range = ${lower} – ${upper} cm</p>
+        </div>
+      `;
+    }
+  </script>
+</body>
+</html>
